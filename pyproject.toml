@@ -1,0 +1,53 @@
+[project]
+name = "deltaaudit"
+version = "0.1.0"
+description = "What the metric hides: predicting unseen gene knockdowns. A pre-registered audit of perturbation-response prediction."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "pyarrow",
+    "anndata",
+    "h5py",
+    "scikit-learn",
+    "torch",
+    "networkx",
+    "pyyaml",
+    "typer",
+    "matplotlib",
+    "tqdm",
+]
+
+[project.scripts]
+deltaaudit = "deltaaudit.cli:app"
+
+[dependency-groups]
+dev = ["pytest", "ruff", "black"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# CPU-only torch on Linux (CI) so we don't pull ~2 GB of CUDA wheels; macOS uses PyPI (MPS).
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]  # black owns line length; it won't split long strings
+
+[tool.black]
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
