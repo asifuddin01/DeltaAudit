@@ -52,18 +52,26 @@ def download(
 
 
 @app.command()
-def verify() -> None:
-    """Check every pinned raw file (SHA-256) and that nothing in data/raw is unpinned."""
+def verify(
+    skip_raw: bool = typer.Option(
+        False, help="Skip raw-file checksums (CI and Colab have no data/raw)."
+    ),
+) -> None:
+    """Checksums of every pinned raw file + leakage assertions on every split file."""
+    from deltaaudit.data.leakage import verify_split_files
     from deltaaudit.io.checksums import read_pins
     from deltaaudit.io.checksums import verify as verify_pins
 
-    problems = verify_pins(ROOT)
+    problems = [] if skip_raw else verify_pins(ROOT)
+    problems += verify_split_files(ROOT)
     for p in problems:
         typer.echo(p, err=True)
     if problems:
         typer.echo(f"verify FAILED: {len(problems)} problem(s)", err=True)
         raise typer.Exit(1)
-    typer.echo(f"verify ok: {len(read_pins(ROOT))} pinned file(s)")
+    n_splits = len(list((ROOT / "data" / "splits").rglob("fold_*.json")))
+    raw = "skipped" if skip_raw else f"{len(read_pins(ROOT))} pinned file(s) ok"
+    typer.echo(f"verify ok: raw {raw}; {n_splits} split file(s) leak-free")
 
 
 @app.command()
@@ -177,3 +185,48 @@ def figures(
             desc, title, ROOT / FIGURES / f"fig1_sys_variation_{cfg['name']}.png"
         )
         typer.echo(f"wrote {out.relative_to(ROOT)}")
+
+
+@app.command()
+def split(
+    names: list[str] = typer.Argument(None, help="Dataset config names."),
+    all_: bool = typer.Option(
+        False, "--all", help="Every config with a splits section."
+    ),
+) -> None:
+    """Write data/splits/<dataset>/fold_k.json (+ doubles split, summary.json) from meta."""
+    import json
+
+    import pandas as pd
+
+    from deltaaudit.data.leakage import check_folds, check_split
+    from deltaaudit.data.splits import (
+        seen_2of2_split,
+        split_summary,
+        unseen_single_splits,
+    )
+
+    for cfg in (c for c in load_configs(names, all_) if "splits" in c):
+        meta = pd.read_parquet(ROOT / PROCESSED / cfg["name"] / "meta.parquet")
+        folds = unseen_single_splits(meta, cfg["splits"], cfg["name"])
+        extra = (
+            [seen_2of2_split(meta, cfg["name"])]
+            if cfg["splits"].get("doubles_seen_2of2")
+            else []
+        )
+        problems = check_folds(folds, meta) + [
+            p for s in folds + extra for p in check_split(s, meta)
+        ]
+        if problems:
+            raise typer.BadParameter("; ".join(problems))
+        out = ROOT / "data" / "splits" / cfg["name"]
+        out.mkdir(parents=True, exist_ok=True)
+        for s in folds:
+            (out / f"fold_{s['fold']}.json").write_text(json.dumps(s, indent=1) + "\n")
+        for s in extra:
+            (out / "doubles_seen_2of2.json").write_text(json.dumps(s, indent=1) + "\n")
+        summary = split_summary(folds + extra, meta)
+        (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        typer.echo(
+            f"{cfg['name']}: {len(folds)} folds + {len(extra)} extra split(s) written"
+        )

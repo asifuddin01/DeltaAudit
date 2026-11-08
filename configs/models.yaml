@@ -1,0 +1,47 @@
+# Frozen by the `prereg` tag. Hyperparameters for B* and M*; grids are searched on inner validation only.
+B0: {}                         # delta_hat = 0
+B1: {}                         # delta_hat = mu (train+val mean)
+
+B2:                            # const-ae/linear_perturbation_prediction-Paper @ 95e831e,
+                               # benchmark/src/run_linear_pretrained_model.R
+  gene_embedding: pca_of_train_pseudobulk_expression   # genes x (train conditions + ctrl), column-centred
+  pert_embedding: gene_embedding_row_of_target          # ctrl -> zero vector
+  K_grid: [5, 10, 20, 50]
+  ridge_grid: [0.01, 0.1, 1, 10]
+  defaults: {K: 10, ridge: 0.1}
+  select_by: mean inner-validation pspec_r
+  refit_on: train_plus_val
+
+B2-GO:                         # as B2, but the perturbation embedding is a spectral GO embedding
+  pert_embedding: go_spectral   # smallest non-trivial eigenvectors of the normalized GO-graph Laplacian
+  K_grid: [5, 10, 20, 50]      # same K for gene and GO embeddings
+  ridge_grid: [0.01, 0.1, 1, 10]
+  select_by: mean inner-validation pspec_r
+  refit_on: train_plus_val
+
+B3:                            # kNN-GO: Jaccard-weighted mean delta of the target's GO neighbours
+  neighbours: go_graph          # among train+val perturbations; fall back to mu if none
+
+B4: {}                         # Norman doubles: delta_A + delta_B
+
+go_graph:
+  release: "2026-08-05"
+  aspects: [P, F, C]
+  exclude_evidence: []         # all evidence codes (GEARS-comparable)
+  top_k: 20
+  min_jaccard: 0.1
+  symmetrize: max
+
+learned:                       # M1 MLP, M2 SGC+GO, M3 SGC+label-shuffled GO, M3b SGC+rewired GO
+  residual_over: mu_train      # delta_hat = mu_train + f(q)
+  features: {E_delta_k: 32, E_ctrl_k: 32, missing_indicator: true}
+  E_delta_fit_on: train        # train only, so inner-validation stays honest
+  mlp: {hidden: 256, layers: 2, activation: gelu, dropout: 0.2}
+  sgc: {hops: 2, self_loops: true, normalization: symmetric, width: 256}
+  optimizer: {name: adamw, lr: 1.0e-3, weight_decay: 1.0e-4}
+  loss: mse
+  max_epochs: 300
+  early_stopping: {metric: val_pspec_r, patience: 30}
+  batch: full
+  M3: {permutations: 3, permute: node_labels}
+  M3b: {method: double_edge_swap, nswap_per_edge: 10, seed: 0}

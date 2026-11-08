@@ -1,0 +1,42 @@
+# Frozen by the `prereg` tag. Read by eval/ and stats code; see reports/preregistration.md.
+primary_dataset: replogle_k562
+primary_metric: pspec_r
+analysis_sets:
+  primary: common_support      # target gene in the expression panel (every model can predict)
+  secondary: [all, out_of_panel]
+metrics: [raw_r, raw_r20, mse, mse20, pspec_r, pspec_r20, dir20, pspec_dir20, centroid_acc, pds]
+top_k_genes: 20
+degenerate_std: 1.0e-8         # std(pred - mu) below this -> pspec_r = 0, flagged degenerate
+mu: train_plus_val             # mu for pspec metrics: mean delta over the fold's train+val perturbations
+
+statistics:
+  alpha: 0.05
+  correction: holm
+  bootstrap_B: 10000
+  bootstrap_seed: 20261109
+  ci: 0.95
+  secondary_test: wilcoxon_signed_rank
+
+learned_seeds: [0, 1, 2, 3, 4]
+shuffle_permutations: [0, 1, 2]
+
+best_learned:                  # for C1; chosen without test data
+  candidates: [M1, M2]
+  selected_by: mean inner-validation raw_r over folds and seeds
+
+family:                        # primary family, Holm-corrected together
+  - {id: C1, a: best_learned, b: B1, metric: raw_r, hypothesis: H1}
+  - {id: C2, a: B2, b: B1, metric: pspec_r, hypothesis: H2}
+  - {id: C3, a: M1, b: B2, metric: pspec_r, hypothesis: H3}
+  - {id: C4, a: M2, b: M1, metric: pspec_r, hypothesis: H4a}
+  - {id: C5, a: M2, b: M3, metric: pspec_r, hypothesis: H4b}
+  - {id: C6, a: B2-GO, b: B2, metric: pspec_r, hypothesis: none}
+
+decision_rules:
+  H1: {equivalence_margin: 0.05, spearman_threshold: 0.5}
+  H2: {far_below_ceiling_fraction: 0.5}
+
+cluster_bootstrap:             # sensitivity only
+  linkage: average
+  distance: one_minus_go_jaccard
+  cut_height: 0.8

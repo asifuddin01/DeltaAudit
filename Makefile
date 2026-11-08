@@ -22,6 +22,8 @@ data:
 	$(RUN) deltaaudit card --all
 	$(RUN) deltaaudit preprocess --all
 	$(RUN) deltaaudit describe --all
+	$(RUN) deltaaudit split --all
+	$(RUN) deltaaudit verify
 
 verify:
 	$(RUN) deltaaudit verify

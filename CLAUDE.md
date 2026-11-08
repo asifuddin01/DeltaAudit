@@ -6,8 +6,8 @@ The full plan is in `BUILD_GUIDE.md`. Read it before starting work, and work thr
 
 ## Where we are
 Keep this block updated at the end of every session:
-- Current phase: 3 (Phase 2 done: chunked pseudobulk + half-splits, ctrl embedding, sys_cos + ceilings, Fig 1). Phase 3 must commit and tag `prereg` before anything is scored on test folds.
-- Last green commit: phase-2 (see `git log`)
+- Current phase: 3, awaiting the `prereg` tag. Splits, leakage guards and `reports/preregistration.md` are committed; the user reviews the prereg, then we tag `prereg` and push the tag. Nothing may be scored on a test fold before that.
+- Last green commit: phase-3 (see `git log`)
 - Open decisions: none. Dataset = Replogle K562 essential (user confirmed 2026-11-09). Dev box is an M1 with 8 GB RAM; preprocess peaked at 1.37 GB (Replogle, 113 s).
 - Facts for later phases (from `data/cards/*.json`): Replogle has 1,092 single-gene perturbations, but only 412 targets are in the 5,000-gene panel (common support for B2), and 22 have fewer than 30 cells (dropped; 1,070 kept). GEARS lists `A+ctrl` and `ctrl+A` separately; `card.canonical_condition` merges them (Norman goes from 152 to 105 singles).
 

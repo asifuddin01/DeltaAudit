@@ -22,3 +22,7 @@ preprocess:
   chunk_cells: 20000            # cells per backed read; keeps peak RAM low on an 8 GB Mac
   half_split_seed: 0            # seeded 50/50 split of each perturbation's cells (noise ceiling)
   ctrl_embed_k: 32              # PCs of the control-cell gene-gene correlation
+splits:
+  n_folds: 5
+  val_frac: 0.1                 # inner validation, from each fold's training perturbations
+  seed: 0

@@ -1,0 +1,32 @@
+{
+  "unseen_single_fold_0": {
+    "n_train": 771,
+    "n_val": 85,
+    "n_test": 214,
+    "n_test_target_in_panel": 81
+  },
+  "unseen_single_fold_1": {
+    "n_train": 771,
+    "n_val": 85,
+    "n_test": 214,
+    "n_test_target_in_panel": 81
+  },
+  "unseen_single_fold_2": {
+    "n_train": 771,
+    "n_val": 85,
+    "n_test": 214,
+    "n_test_target_in_panel": 81
+  },
+  "unseen_single_fold_3": {
+    "n_train": 771,
+    "n_val": 85,
+    "n_test": 214,
+    "n_test_target_in_panel": 81
+  },
+  "unseen_single_fold_4": {
+    "n_train": 771,
+    "n_val": 85,
+    "n_test": 214,
+    "n_test_target_in_panel": 82
+  }
+}
