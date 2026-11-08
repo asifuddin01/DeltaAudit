@@ -112,3 +112,22 @@ def verify_split_files(root: Path) -> list[str]:
         if folds:
             problems += [f"{d.name}: {p}" for p in check_folds(folds, meta)]
     return problems
+
+
+def require_prereg(root: Path) -> None:
+    """CLAUDE.md rule 1: refuse to score test folds unless the `prereg` tag exists and HEAD
+    descends from it."""
+    import subprocess
+
+    def ok(*args: str) -> bool:
+        return (
+            subprocess.run(["git", *args], cwd=root, capture_output=True).returncode
+            == 0
+        )
+
+    if not ok("rev-parse", "-q", "--verify", "refs/tags/prereg^{commit}"):
+        raise LeakageError(
+            "no `prereg` tag: commit and tag reports/preregistration.md first"
+        )
+    if not ok("merge-base", "--is-ancestor", "prereg", "HEAD"):
+        raise LeakageError("HEAD does not descend from the `prereg` tag")

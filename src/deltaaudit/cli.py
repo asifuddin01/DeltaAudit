@@ -230,3 +230,35 @@ def split(
         typer.echo(
             f"{cfg['name']}: {len(folds)} folds + {len(extra)} extra split(s) written"
         )
+
+
+@app.command()
+def baselines(
+    names: list[str] = typer.Argument(None, help="Dataset config names."),
+    all_: bool = typer.Option(
+        False, "--all", help="Every config with a splits section."
+    ),
+) -> None:
+    """Fit/score the baselines on every split -> results/<dataset>/<model>/..., results/summary/baselines.csv."""
+    import pandas as pd
+
+    from deltaaudit.data.leakage import require_prereg, verify_split_files
+    from deltaaudit.models.baselines import PREDICTORS
+    from deltaaudit.pipeline import load_dataset, load_splits, run_model, summarize
+
+    require_prereg(ROOT)
+    if problems := verify_split_files(ROOT):
+        raise typer.BadParameter("; ".join(problems))
+    eval_cfg = yaml.safe_load((ROOT / "configs" / "eval.yaml").read_text())
+    if not names and not all_:
+        all_ = True
+    frames = []
+    for cfg in (c for c in load_configs(names, all_) if "splits" in c):
+        data, splits = load_dataset(ROOT, cfg["name"]), load_splits(ROOT, cfg["name"])
+        for model, predict in PREDICTORS.items():
+            frames.append(run_model(ROOT, data, splits, eval_cfg, model, predict, {}))
+            typer.echo(f"{cfg['name']}/{model}: {len(splits)} split(s) scored")
+    table = summarize(pd.concat(frames), eval_cfg["metrics"], eval_cfg["statistics"])
+    (ROOT / SUMMARY).mkdir(parents=True, exist_ok=True)
+    table.to_csv(ROOT / SUMMARY / "baselines.csv", index=False, float_format="%.6g")
+    typer.echo(f"wrote {SUMMARY}/baselines.csv ({len(table)} rows)")

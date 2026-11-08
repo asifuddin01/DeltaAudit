@@ -6,10 +6,11 @@ The full plan is in `BUILD_GUIDE.md`. Read it before starting work, and work thr
 
 ## Where we are
 Keep this block updated at the end of every session:
-- Current phase: 3, awaiting the `prereg` tag. Splits, leakage guards and `reports/preregistration.md` are committed; the user reviews the prereg, then we tag `prereg` and push the tag. Nothing may be scored on a test fold before that.
-- Last green commit: phase-3 (see `git log`)
+- Current phase: 5 (Phase 4 done: metrics with known-answer tests, shared `pipeline.run_model`, B0/B1 on all folds → `results/summary/baselines.csv`). `prereg` tag = 8f96e03, pushed 2026-11-09; scoring commands call `require_prereg`.
+- Last green commit: phase-4 (see `git log`)
 - Open decisions: none. Dataset = Replogle K562 essential (user confirmed 2026-11-09). Dev box is an M1 with 8 GB RAM; preprocess peaked at 1.37 GB (Replogle, 113 s).
 - Facts for later phases (from `data/cards/*.json`): Replogle has 1,092 single-gene perturbations, but only 412 targets are in the 5,000-gene panel (common support for B2), and 22 have fewer than 30 cells (dropped; 1,070 kept). GEARS lists `A+ctrl` and `ctrl+A` separately; `card.canonical_condition` merges them (Norman goes from 152 to 105 singles).
+- B0 scores pspec_r > 0 (Replogle ~0.06–0.09) while B1 = 0 by construction; read pspec_r against B0 too (logged in DECISIONS as exploratory).
 
 ## Hard rules (never break these)
 1. **No test peeking.** Nothing is scored on a test fold until `reports/preregistration.md` is committed and tagged `prereg`. Every hyperparameter or model choice uses inner-validation perturbations only.
