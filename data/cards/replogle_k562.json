@@ -1,0 +1,62 @@
+{
+  "n_cells": 162751,
+  "n_genes": 5000,
+  "n_ctrl_cells": 10691,
+  "n_raw_condition_labels": 1093,
+  "x_storage": "sparse",
+  "x_max": 8.3939847946167,
+  "x_integer_valued": false,
+  "obs_columns": [
+    "condition",
+    "cell_type",
+    "cov_drug_dose_name",
+    "dose_val",
+    "control",
+    "condition_name"
+  ],
+  "guide_columns": [],
+  "n_perturbations": 1092,
+  "n_single": 1092,
+  "n_double": 0,
+  "n_unique_target_genes": 1092,
+  "n_perturbations_all_targets_in_panel": 412,
+  "min_cells_threshold": 30,
+  "n_perturbations_below_min_cells": 22,
+  "cells_per_perturbation": {
+    "q05": 38.0,
+    "q25": 75.0,
+    "q50": 115.0,
+    "q75": 179.0,
+    "q95": 310.8000000000002
+  },
+  "single_knockdown_n": 412,
+  "single_knockdown_log2fc": {
+    "q05": -7.780850561623869,
+    "q25": -6.71738991505004,
+    "q50": -5.685759198987215,
+    "q75": -4.2619235847248875,
+    "q95": -2.9680057732411624
+  },
+  "single_frac_log2fc_below_minus1": 1.0,
+  "single_frac_log2fc_above_plus1": 0.0,
+  "manifest": {
+    "git_sha": "6f6d030ce2391361d67d3be5ea8549b2995cfdc1",
+    "config_hash": "8046e39fd52c138ca417025aacf0729e0a365e63af8651261999c7515d5ed6ef",
+    "inputs": {
+      "data/raw/replogle_k562/gears_replogle_k562_essential/extracted/replogle_k562_essential/perturb_processed.h5ad": "550fde89ac85c258c9fd517638fe34fb42c0e748c9305fe6355761a2bb754170"
+    },
+    "device": "mps",
+    "python": "3.11.15",
+    "versions": {
+      "numpy": "2.4.6",
+      "scipy": "1.17.1",
+      "pandas": "2.3.3",
+      "anndata": "0.12.19",
+      "h5py": "3.16.0",
+      "scikit-learn": "1.9.1",
+      "torch": "2.15.0"
+    },
+    "wall_time_s": 14.41,
+    "peak_rss_bytes": 778010624
+  }
+}
