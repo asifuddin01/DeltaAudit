@@ -12,3 +12,9 @@
 | 2026-11-09 | Download records kept in committed `data/downloads.json`; `data/SOURCES.md` is generated from it + configs | No hand-typed hashes or sizes | Hand-written SOURCES.md |
 | 2026-11-09 | Knockdown efficiency = log2((mean_pert + 0.01) / (mean_ctrl + 0.01)) on normalized expression (expm1 of stored log1p) | Interpretable as fold change; pseudocount in config | Difference of mean log1p values |
 | 2026-11-09 | GEARS Norman `obs.cell_type` says "A549"; the screen is K562 (Norman 2019). Treated as a GEARS labelling quirk, noted in the card | Original paper is K562 CRISPRa | — |
+| 2026-11-09 | Pseudobulk columns keyed by Ensembl id; `genes.parquet` maps symbols. A target symbol masks every column with that symbol | Replogle has a duplicated symbol (TBCE, two Ensembl ids) | Dedupe symbols by suffix |
+| 2026-11-09 | Split-half ceiling uses half-specific controls: Δ^A = pb_A[p] − pb_A[ctrl], Δ^B = pb_B[p] − pb_B[ctrl] | A shared control mean would put the same control noise in both halves and inflate the ceiling | One control mean for both halves |
+| 2026-11-09 | sys_cos and ceilings exclude the target gene(s), like every metric | Knockdown of the target dominates Δ and would inflate both | Include target in descriptives only |
+| 2026-11-09 | Control embedding = top-K eigenvectors of control-cell gene–gene correlation × sqrt(eigenvalue), sign fixed by the largest-|loading| entry; zero-variance genes get a zero row | Deterministic, uses control cells only | sklearn PCA on cells (needs dense cells) |
+| 2026-11-09 | `make all` skip rule: rerun a step unless MANIFEST.json matches config hash, package code hash and input hashes | Git SHA changes on every commit; a code hash is what actually invalidates outputs | Skip on git SHA |
+| 2026-11-09 | `data/processed/` parquet (~80 MB for Replogle) not committed; will ship in the Colab bundle / release | Above the 50 MB guideline | Commit to git |

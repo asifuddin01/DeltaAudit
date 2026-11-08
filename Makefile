@@ -20,6 +20,8 @@ data:
 	$(RUN) deltaaudit download --all
 	$(RUN) deltaaudit verify
 	$(RUN) deltaaudit card --all
+	$(RUN) deltaaudit preprocess --all
+	$(RUN) deltaaudit describe --all
 
 verify:
 	$(RUN) deltaaudit verify
@@ -37,7 +39,7 @@ stats:
 	$(RUN) deltaaudit stats
 
 report:
-	$(RUN) deltaaudit report
+	$(RUN) deltaaudit figures --all
 
 all:
 	$(RUN) deltaaudit all

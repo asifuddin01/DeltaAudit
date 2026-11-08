@@ -18,4 +18,7 @@ assets:
 qc:
   min_cells: 30
   knockdown_pseudocount: 0.01   # added to mean normalized expression before log2 ratio
+preprocess:
   chunk_cells: 20000            # cells per backed read; keeps peak RAM low on an 8 GB Mac
+  half_split_seed: 0            # seeded 50/50 split of each perturbation's cells (noise ceiling)
+  ctrl_embed_k: 32              # PCs of the control-cell gene-gene correlation

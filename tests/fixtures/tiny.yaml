@@ -1,0 +1,11 @@
+name: tiny
+description: Synthetic GEARS-like fixture (tests/fixtures/make_tiny.py).
+modality: synthetic
+h5ad: tests/fixtures/tiny.h5ad
+qc:
+  min_cells: 30
+  knockdown_pseudocount: 0.01
+preprocess:
+  chunk_cells: 500
+  half_split_seed: 0
+  ctrl_embed_k: 8
