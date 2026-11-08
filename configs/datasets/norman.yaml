@@ -1,0 +1,19 @@
+name: norman
+description: Norman et al. 2019 K562 CRISPRa Perturb-seq with single and two-gene perturbations, GEARS-processed. CRISPRa, so effects are activation, not knockdown. GEARS labels obs.cell_type "A549"; the cells are K562 (Norman 2019).
+modality: CRISPRa
+h5ad: data/raw/norman/gears_norman/extracted/norman/perturb_processed.h5ad
+guides_note: The GEARS h5ad carries no guide ids; splits are gene-disjoint, with both genes of a double counted.
+assets:
+  - id: gears_norman
+    url: https://dataverse.harvard.edu/api/access/datafile/6154020
+    dataverse_file_id: 6154020
+    dataverse_doi: doi:10.7910/DVN/Q2ZV3E
+    filename: norman.zip
+    md5: cdc41d6050e619c37fd9dd44d440e2b4
+    archive: true
+    licence: CC0 1.0 (GEARS Dataverse record); cite the original screen and GEARS.
+    citation: Norman TM et al., Science 365:786 (2019) doi:10.1126/science.aax4438; processed by Roohani Y et al., GEARS, Nat Biotechnol (2023).
+qc:
+  min_cells: 30
+  knockdown_pseudocount: 0.01
+  chunk_cells: 20000

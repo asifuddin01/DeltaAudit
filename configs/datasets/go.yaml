@@ -1,0 +1,10 @@
+name: go
+description: Gene Ontology human annotations (GAF 2.2), dated release 2026-08-05. Newer GO releases name the human file HUMAN-uniprot.gaf.gz (formerly goa_human.gaf.gz).
+release: "2026-08-05"
+assets:
+  - id: go_human_gaf_2026-08-05
+    url: https://release.geneontology.org/2026-08-05/annotations/gaf/HUMAN-uniprot.gaf.gz
+    filename: HUMAN-uniprot.gaf.gz
+    archive: false
+    licence: CC BY 4.0
+    citation: Gene Ontology Consortium, The Gene Ontology knowledgebase in 2023, Genetics 224:iyad031 (2023) doi:10.1093/genetics/iyad031.

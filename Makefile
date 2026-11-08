@@ -19,8 +19,7 @@ lint:
 data:
 	$(RUN) deltaaudit download --all
 	$(RUN) deltaaudit verify
-	$(RUN) deltaaudit preprocess --all
-	$(RUN) deltaaudit split --all
+	$(RUN) deltaaudit card --all
 
 verify:
 	$(RUN) deltaaudit verify

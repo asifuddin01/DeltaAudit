@@ -1,0 +1,36 @@
+{
+  "go": {
+    "go_human_gaf_2026-08-05": {
+      "bytes": 12109254,
+      "downloaded_utc": "2026-11-08T19:29:57+00:00",
+      "md5": "f74b40c53bdf8ed39d300a491eaf852d",
+      "sha256": "a0afba19dfb1f8fa996bc1bdcd61fd0c9bd4cf0d2bf2509d09ac86993c0e70a2",
+      "url": "https://release.geneontology.org/2026-08-05/annotations/gaf/HUMAN-uniprot.gaf.gz"
+    }
+  },
+  "norman": {
+    "gears_norman": {
+      "bytes": 168758985,
+      "downloaded_utc": "2026-11-08T19:30:55+00:00",
+      "extracted": [
+        "data/raw/norman/gears_norman/extracted/norman/go.csv",
+        "data/raw/norman/gears_norman/extracted/norman/perturb_processed.h5ad"
+      ],
+      "md5": "cdc41d6050e619c37fd9dd44d440e2b4",
+      "sha256": "c1938353f6f41829c9137f073ecb843ce4d4114528b001b48312b019f739d877",
+      "url": "https://dataverse.harvard.edu/api/access/datafile/6154020"
+    }
+  },
+  "replogle_k562": {
+    "gears_replogle_k562_essential": {
+      "bytes": 669703049,
+      "downloaded_utc": "2026-11-08T19:37:27+00:00",
+      "extracted": [
+        "data/raw/replogle_k562/gears_replogle_k562_essential/extracted/replogle_k562_essential/perturb_processed.h5ad"
+      ],
+      "md5": "84eed779531de88f83d3eb16a773a261",
+      "sha256": "e769c89aa876061fdb3ac02a8de274f19a741a4f95decf14a52fd621d1eea319",
+      "url": "https://dataverse.harvard.edu/api/access/datafile/7458695"
+    }
+  }
+}

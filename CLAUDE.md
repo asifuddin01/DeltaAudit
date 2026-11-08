@@ -6,9 +6,10 @@ The full plan is in `BUILD_GUIDE.md`. Read it before starting work, and work thr
 
 ## Where we are
 Keep this block updated at the end of every session:
-- Current phase: 1 (Phase 0 done: scaffold, uv env, CI, `make test` green)
-- Last green commit: phase-0 scaffold (see `git log`)
-- Open decisions: none. Dataset = Replogle K562 essential (user confirmed 2026-11-09). Dev box is an M1 with 8 GB RAM, so keep peak RAM well under 8 GB.
+- Current phase: 2 (Phase 1 done: download/extract/pin/verify, SOURCES.md, dataset cards for replogle_k562 + norman)
+- Last green commit: phase-1 (see `git log`)
+- Open decisions: none. Dataset = Replogle K562 essential (user confirmed 2026-11-09). Dev box is an M1 with 8 GB RAM; card scans peaked at 0.78 GB.
+- Facts for later phases (from `data/cards/*.json`): Replogle has 1,092 single-gene perturbations, but only 412 targets are in the 5,000-gene panel (common support for B2), and 22 have fewer than 30 cells. GEARS lists `A+ctrl` and `ctrl+A` separately; `card.canonical_condition` merges them (Norman goes from 152 to 105 singles).
 
 ## Hard rules (never break these)
 1. **No test peeking.** Nothing is scored on a test fold until `reports/preregistration.md` is committed and tagged `prereg`. Every hyperparameter or model choice uses inner-validation perturbations only.

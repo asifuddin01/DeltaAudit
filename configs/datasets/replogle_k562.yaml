@@ -1,0 +1,21 @@
+name: replogle_k562
+description: Replogle et al. 2022 K562 essential-gene CRISPRi Perturb-seq, GEARS-processed (log-normalized, ~5,000 HVGs).
+modality: CRISPRi
+h5ad: data/raw/replogle_k562/gears_replogle_k562_essential/extracted/replogle_k562_essential/perturb_processed.h5ad
+guides_note: >-
+  Replogle essential uses one dual-guide construct per target gene, so gene-disjoint
+  splits are also guide-disjoint. The GEARS h5ad carries no guide ids.
+assets:
+  - id: gears_replogle_k562_essential
+    url: https://dataverse.harvard.edu/api/access/datafile/7458695
+    dataverse_file_id: 7458695
+    dataverse_doi: doi:10.7910/DVN/BD93JY
+    filename: replogle_k562_essential.zip
+    md5: 84eed779531de88f83d3eb16a773a261
+    archive: true
+    licence: CC0 1.0 (GEARS Dataverse record); cite the original screen and GEARS.
+    citation: Replogle JM et al., Cell 185:2559 (2022) doi:10.1016/j.cell.2022.05.013; processed by Roohani Y et al., GEARS, Nat Biotechnol (2023).
+qc:
+  min_cells: 30
+  knockdown_pseudocount: 0.01   # added to mean normalized expression before log2 ratio
+  chunk_cells: 20000            # cells per backed read; keeps peak RAM low on an 8 GB Mac
