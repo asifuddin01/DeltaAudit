@@ -1,19 +1,23 @@
+import gzip
 import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 import yaml
 
-from deltaaudit.data.leakage import LeakageError, require_prereg
+from deltaaudit.data import go_graph
+from deltaaudit.data.leakage import LeakageError, fit_rows, require_prereg
 from deltaaudit.data.pseudobulk import preprocess
 from deltaaudit.data.splits import seen_2of2_split, unseen_single_splits
-from deltaaudit.models.baselines import PREDICTORS, predict_b1
-from deltaaudit.pipeline import fit_mu, load_dataset, load_splits, run_model, summarize
+from deltaaudit.models.baselines import predict_b1, registry, run_baselines
+from deltaaudit.pipeline import fit_mu, load_dataset, load_splits, summarize
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG = yaml.safe_load((ROOT / "tests/fixtures/tiny.yaml").read_text())
 EVAL = yaml.safe_load((ROOT / "configs/eval.yaml").read_text())
+MODELS = yaml.safe_load((ROOT / "configs/models.yaml").read_text())
 SPLITS = {"n_folds": 5, "val_frac": 0.1, "seed": 0}
 
 
@@ -21,8 +25,6 @@ SPLITS = {"n_folds": 5, "val_frac": 0.1, "seed": 0}
 def tiny_root(tmp_path_factory):
     root = tmp_path_factory.mktemp("root")
     preprocess(ROOT, CFG, root / "data/processed/tiny")
-    import pandas as pd
-
     meta = pd.read_parquet(root / "data/processed/tiny/meta.parquet")
     out = root / "data/splits/tiny"
     out.mkdir(parents=True)
@@ -31,16 +33,28 @@ def tiny_root(tmp_path_factory):
     (out / "doubles_seen_2of2.json").write_text(
         json.dumps(seen_2of2_split(meta, "tiny"))
     )
+    # Synthetic GAF: G-genes share a group term (i % 5) plus a private one; X03 is unannotated.
+    genes = [f"G{i:03d}" for i in range(40)] + ["X00", "X01", "X02"]
+    rows = [(g, f"GO:{i % 5}") for i, g in enumerate(genes)]
+    rows += [(g, f"GO:1{i:03d}") for i, g in enumerate(genes)]
+    gaf = root / "tiny.gaf.gz"
+    with gzip.open(gaf, "wt") as f:
+        for g, t in rows:
+            f.write(
+                "\t".join(
+                    ["UniProtKB", g, g, "involved_in", t, "", "IDA", "", "P", "", ""]
+                )
+                + "\n"
+            )
+    go_graph.build(meta, gaf, MODELS["go_graph"], root / "data/processed/tiny/go")
     return root
 
 
 @pytest.fixture(scope="module")
 def scores(tiny_root):
     data, splits = load_dataset(tiny_root, "tiny"), load_splits(tiny_root, "tiny")
-    return {
-        m: run_model(tiny_root, data, splits, EVAL, m, f, {})
-        for m, f in PREDICTORS.items()
-    }
+    all_ = run_baselines(tiny_root, data, splits, EVAL, MODELS, log=lambda _: None)
+    return {m: g for m, g in all_.groupby("model")}
 
 
 def test_every_single_tested_once_and_doubles_scored(scores):
@@ -74,15 +88,11 @@ def test_b1_ignores_corrupted_test_rows(tiny_root):
     clean = fit_mu(data["delta"], split)
     data["delta"].loc[split["test"]] = np.nan
     np.testing.assert_array_equal(fit_mu(data["delta"], split), clean)
-    from deltaaudit.data.leakage import fit_rows
-
     pred = predict_b1(data, split, fit_rows(data["delta"], split))
     assert np.isfinite(pred.to_numpy()).all()
 
 
 def test_summary_has_cis(scores):
-    import pandas as pd
-
     stats = {**EVAL["statistics"], "bootstrap_B": 500}
     t = summarize(pd.concat(scores.values()), ["raw_r", "pspec_r"], stats)
     pooled = t[(t.fold == "pooled") & (t.metric == "raw_r")]
@@ -93,3 +103,66 @@ def test_summary_has_cis(scores):
 def test_require_prereg_refuses_without_tag(tmp_path):
     with pytest.raises(LeakageError):
         require_prereg(tmp_path)
+
+
+def test_registry_runs_each_model_on_its_splits(scores):
+    assert set(scores) == {"B0", "B1", "B2", "B2-GO", "B3", "B4"}
+    assert set(scores["B4"].split_type) == {"seen_2of2"}
+    for m in ("B2", "B2-GO", "B3"):
+        assert set(scores[m].split_type) == {"unseen_single"}
+
+
+def test_b2_predicts_in_panel_and_falls_back_out_of_panel(scores):
+    s = scores["B2"][lambda d: d.analysis_set == "all"]
+    out = s.condition.str.startswith("X")
+    assert (
+        s.loc[out, "fallback_to_mu"].all() and not s.loc[~out, "fallback_to_mu"].any()
+    )
+    assert not s.loc[~out, "degenerate_pspec"].any()
+
+
+def test_b2_go_and_b3_fall_back_only_without_go_neighbours(scores):
+    for m in ("B2-GO", "B3"):
+        s = scores[m][lambda d: d.analysis_set == "all"]
+        assert set(s.loc[s.fallback_to_mu, "condition"]) == {"X03"}
+
+
+def test_b2_selection_recorded_in_manifest(tiny_root, scores):
+    m = json.loads((tiny_root / "results/tiny/B2/fold_0/MANIFEST.json").read_text())
+    info = m["fit_info"]
+    assert (
+        info["K"] in MODELS["B2"]["K_grid"]
+        and info["ridge"] in MODELS["B2"]["ridge_grid"]
+    )
+    assert info["K_skipped"] == [
+        50
+    ]  # tiny has ~36 training conditions: K=50 is not identifiable
+    assert len(info["val_pspec_r"]) == 12 and info["n_val_scored"] > 0
+    assert info["val_pspec_r"][f"K={info['K']},ridge={info['ridge']:g}"] == max(
+        info["val_pspec_r"].values()
+    )
+
+
+@pytest.mark.parametrize("model", ["B2", "B2-GO", "B3"])
+def test_fitted_models_ignore_corrupted_test_rows(tiny_root, model):
+    """Rule 3: NaN in test rows (delta and expression) must not change any prediction."""
+    predict = registry(MODELS, EVAL)[model][0]
+    split = load_splits(tiny_root, "tiny")[0]
+    clean_data = load_dataset(tiny_root, "tiny")
+    clean = predict(clean_data, split, fit_rows(clean_data["delta"], split))
+    data = load_dataset(tiny_root, "tiny")
+    data["delta"].loc[split["test"]] = np.nan
+    data["pb_mean"].loc[split["test"]] = np.nan
+    got = predict(data, split, fit_rows(data["delta"], split))
+    assert np.isfinite(got.to_numpy()).all()
+    pd.testing.assert_frame_equal(got, clean)
+
+
+def test_b4_is_sum_of_singles(tiny_root):
+    data = load_dataset(tiny_root, "tiny")
+    split = next(
+        s for s in load_splits(tiny_root, "tiny") if s["split_type"] == "seen_2of2"
+    )
+    pred = registry(MODELS, EVAL)["B4"][0](data, split, fit_rows(data["delta"], split))
+    d = data["delta"]
+    np.testing.assert_allclose(pred.loc["G002+G003"], d.loc["G002"] + d.loc["G003"])

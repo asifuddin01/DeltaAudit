@@ -23,6 +23,7 @@ data:
 	$(RUN) deltaaudit preprocess --all
 	$(RUN) deltaaudit describe --all
 	$(RUN) deltaaudit split --all
+	$(RUN) deltaaudit go-graph --all
 	$(RUN) deltaaudit verify
 
 verify:

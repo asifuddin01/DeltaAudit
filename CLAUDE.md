@@ -6,10 +6,11 @@ The full plan is in `BUILD_GUIDE.md`. Read it before starting work, and work thr
 
 ## Where we are
 Keep this block updated at the end of every session:
-- Current phase: 5 (Phase 4 done: metrics with known-answer tests, shared `pipeline.run_model`, B0/B1 on all folds → `results/summary/baselines.csv`). `prereg` tag = 8f96e03, pushed 2026-11-09; scoring commands call `require_prereg`.
-- Last green commit: phase-4 (see `git log`)
+- Current phase: 6 (Phase 5 done: GO graph `deltaaudit go-graph`, B2 (const-ae), B2-GO, B3, B4; K/λ chosen on inner val, recorded in each MANIFEST `fit_info`; full table → `results/summary/baselines.csv`). `prereg` tag = 8f96e03, pushed 2026-11-09; scoring commands call `require_prereg`.
+- Last green commit: phase-5 (see `git log`)
 - Open decisions: none. Dataset = Replogle K562 essential (user confirmed 2026-11-09). Dev box is an M1 with 8 GB RAM; preprocess peaked at 1.37 GB (Replogle, 113 s).
 - Facts for later phases (from `data/cards/*.json`): Replogle has 1,092 single-gene perturbations, but only 412 targets are in the 5,000-gene panel (common support for B2), and 22 have fewer than 30 cells (dropped; 1,070 kept). GEARS lists `A+ctrl` and `ctrl+A` separately; `card.canonical_condition` merges them (Norman goes from 152 to 105 singles).
+- GO coverage: Replogle 1,063/1,070 targets have a GO edge, Norman 98/105 (`results/summary/*_go_coverage.json`). B3/B2-GO reach pspec_r ≈ 0.42–0.46 on Replogle (label-permuted graph: 0.006). B3 beats the split-half ceiling for 49% of perturbations, so the ceiling is conservative (DECISIONS). This sets a high bar for M2 in C4/C5.
 - B0 scores pspec_r > 0 (Replogle ~0.06–0.09) while B1 = 0 by construction; read pspec_r against B0 too (logged in DECISIONS as exploratory).
 
 ## Hard rules (never break these)

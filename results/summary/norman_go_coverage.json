@@ -1,0 +1,11 @@
+{
+  "dataset": "norman",
+  "n_nodes": 105,
+  "n_annotated": 103,
+  "n_with_edge": 98,
+  "frac_with_edge": 0.9333333333333333,
+  "mean_degree": 19.961904761904762,
+  "n_edges": 1048,
+  "n_via_synonym": 4,
+  "release": "2026-08-05"
+}

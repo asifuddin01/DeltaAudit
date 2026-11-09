@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from deltaaudit.data import go_graph
 from deltaaudit.data.leakage import SPLITS_DIR, fit_rows
 from deltaaudit.eval.metrics import score, target_mask
 from deltaaudit.eval.stats import bootstrap_ci
@@ -27,8 +28,16 @@ Predictor = Callable[[dict, dict, pd.DataFrame], pd.DataFrame]
 
 def load_dataset(root: Path, name: str) -> dict:
     d = root / PROCESSED / name
-    data = {k: pd.read_parquet(d / f"{k}.parquet") for k in ("delta", "meta", "genes")}
+    tables = ("delta", "meta", "genes", "pb_mean")
+    data = {k: pd.read_parquet(d / f"{k}.parquet") for k in tables}
     data["name"] = name
+    data["inputs"] = [f"{PROCESSED}/{name}/{k}.parquet" for k in tables]
+    if (d / go_graph.GO_DIR / "graph.npz").exists():
+        data["go"] = go_graph.load(d)
+        data["inputs"] += [
+            f"{PROCESSED}/{name}/{go_graph.GO_DIR}/{f}"
+            for f in ("graph.npz", "nodes.json")
+        ]
     data["symbols"] = (
         data["genes"]
         .set_index("ensembl_id")
@@ -113,9 +122,8 @@ def run_model(
         t0 = time.time()
         fit = fit_rows(data["delta"], split)
         test = split["test"]
-        got = predict(data, split, fit).reindex(
-            index=test, columns=data["delta"].columns
-        )
+        raw = predict(data, split, fit)
+        got = raw.reindex(index=test, columns=data["delta"].columns)
         fallback = got.isna().all(axis=1).to_numpy()
         pred = got.to_numpy(np.float64)
         pred[fallback] = fit_mu(data["delta"], split)
@@ -126,15 +134,14 @@ def run_model(
         out.mkdir(parents=True, exist_ok=True)
         np.save(out / "pred.npy", pred.astype(np.float32))
         scores.to_parquet(out / "scores.parquet")
-        inputs = [
-            f"{PROCESSED}/{data['name']}/{k}.parquet"
-            for k in ("delta", "meta", "genes")
+        inputs = data["inputs"] + [
+            f"{SPLITS_DIR}/{data['name']}/{split_tag(split)}.json"
         ]
-        inputs.append(f"{SPLITS_DIR}/{data['name']}/{split_tag(split)}.json")
         manifest = build_manifest(
             root, {"model": model, "config": config, "eval": eval_cfg}, inputs, t0
         )
         manifest["test_rows"] = test
+        manifest["fit_info"] = raw.attrs.get("fit_info", {})
         (out / "MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n")
         all_scores.append(scores)
     return pd.concat(all_scores, ignore_index=True)

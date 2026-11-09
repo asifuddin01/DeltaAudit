@@ -1,0 +1,11 @@
+{
+  "dataset": "replogle_k562",
+  "n_nodes": 1070,
+  "n_annotated": 1066,
+  "n_with_edge": 1063,
+  "frac_with_edge": 0.9934579439252337,
+  "mean_degree": 29.577570093457943,
+  "n_edges": 15824,
+  "n_via_synonym": 26,
+  "release": "2026-08-05"
+}

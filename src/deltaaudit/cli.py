@@ -165,6 +165,55 @@ def describe(
         )
 
 
+@app.command("go-graph")
+def go_graph_cmd(
+    names: list[str] = typer.Argument(None, help="Dataset config names."),
+    all_: bool = typer.Option(False, "--all", help="Every config that has an h5ad."),
+    force: bool = typer.Option(
+        False, help="Rebuild even if MANIFEST.json is up to date."
+    ),
+) -> None:
+    """GO Jaccard kNN graph over each dataset's targets -> data/processed/<ds>/go/, coverage summary."""
+    import json
+    import time
+
+    import pandas as pd
+
+    from deltaaudit.data import go_graph
+    from deltaaudit.manifest import build_manifest, up_to_date
+
+    go_cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text())["go_graph"]
+    src = yaml.safe_load((ROOT / DATASET_DIR / "go.yaml").read_text())
+    if src["release"] != go_cfg["release"]:
+        raise typer.BadParameter(
+            f"models.yaml GO release {go_cfg['release']} != go.yaml {src['release']}"
+        )
+    asset = src["assets"][0]
+    gaf = f"data/raw/{src['name']}/{asset['id']}/{asset['filename']}"
+    (ROOT / SUMMARY).mkdir(parents=True, exist_ok=True)
+    for cfg in (c for c in load_configs(names, all_) if "h5ad" in c):
+        d = PROCESSED / cfg["name"]
+        out = ROOT / d / go_graph.GO_DIR
+        inputs = [gaf, f"{d}/meta.parquet"]
+        if not force and up_to_date(out / "MANIFEST.json", ROOT, go_cfg, inputs):
+            typer.echo(f"{cfg['name']}: GO graph up to date, skipped")
+            continue
+        t0 = time.time()
+        cov = go_graph.build(
+            pd.read_parquet(ROOT / d / "meta.parquet"), ROOT / gaf, go_cfg, out
+        )
+        m = build_manifest(ROOT, go_cfg, inputs, t0)
+        (out / "MANIFEST.json").write_text(json.dumps(m, indent=2) + "\n")
+        summary = {"dataset": cfg["name"], **cov}
+        (ROOT / SUMMARY / f"{cfg['name']}_go_coverage.json").write_text(
+            json.dumps(summary, indent=2) + "\n"
+        )
+        typer.echo(
+            f"{cfg['name']}: {cov['n_with_edge']}/{cov['n_nodes']} targets have a GO edge "
+            f"({cov['n_annotated']} annotated, {cov['n_via_synonym']} via synonym), {cov['n_edges']} edges"
+        )
+
+
 FIGURES = Path("reports/figures")
 
 
@@ -243,21 +292,22 @@ def baselines(
     import pandas as pd
 
     from deltaaudit.data.leakage import require_prereg, verify_split_files
-    from deltaaudit.models.baselines import PREDICTORS
-    from deltaaudit.pipeline import load_dataset, load_splits, run_model, summarize
+    from deltaaudit.models.baselines import run_baselines
+    from deltaaudit.pipeline import load_dataset, load_splits, summarize
 
     require_prereg(ROOT)
     if problems := verify_split_files(ROOT):
         raise typer.BadParameter("; ".join(problems))
     eval_cfg = yaml.safe_load((ROOT / "configs" / "eval.yaml").read_text())
+    models_cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text())
     if not names and not all_:
         all_ = True
     frames = []
     for cfg in (c for c in load_configs(names, all_) if "splits" in c):
         data, splits = load_dataset(ROOT, cfg["name"]), load_splits(ROOT, cfg["name"])
-        for model, predict in PREDICTORS.items():
-            frames.append(run_model(ROOT, data, splits, eval_cfg, model, predict, {}))
-            typer.echo(f"{cfg['name']}/{model}: {len(splits)} split(s) scored")
+        frames.append(
+            run_baselines(ROOT, data, splits, eval_cfg, models_cfg, typer.echo)
+        )
     table = summarize(pd.concat(frames), eval_cfg["metrics"], eval_cfg["statistics"])
     (ROOT / SUMMARY).mkdir(parents=True, exist_ok=True)
     table.to_csv(ROOT / SUMMARY / "baselines.csv", index=False, float_format="%.6g")
