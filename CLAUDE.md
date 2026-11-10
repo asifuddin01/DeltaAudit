@@ -6,12 +6,12 @@ The full plan is in `BUILD_GUIDE.md`. Read it before starting work, and work thr
 
 ## Where we are
 Keep this block updated at the end of every session:
-- Current phase: 7 (Phase 6 done: `features.py`, `nets.py`, `train.py`, `deltaaudit train [--smoke]`, resumable per run; learned models use the `go_union` graph, panel + targets). The smoke run projects the full grid at 0.20 h on MPS (`results/summary/train_timing.json`), so Phase 7 runs on the Mac (`make train`); the seed-0 fold-0 runs already exist and resume will skip them. `prereg` tag = 8f96e03, pushed 2026-11-09; scoring commands call `require_prereg`.
-- Last green commit: phase-6 (see `git log`)
+- Current phase: 8 (Phase 7 done: full grid of 300 learned runs on MPS in 12 min, no missing manifests; per-run summary in `results/summary/learned_by_run.csv`; per-perturbation scores in `results/<ds>/<model>/<run>/fold_k/scores.parquet`, gitignored, rebuilt by `make train`). Phase 8 = seed-averaged per-perturbation scores, F2 diagnostics, paired bootstrap + Holm over C1–C6, ladder. `prereg` tag = 8f96e03, pushed 2026-11-09; scoring commands call `require_prereg`.
+- Last green commit: phase-7 (see `git log`)
 - Open decisions: none. Dataset = Replogle K562 essential (user confirmed 2026-11-09). Dev box is an M1 with 8 GB RAM; preprocess peaked at 1.37 GB (Replogle, 113 s).
 - Facts for later phases (from `data/cards/*.json`): Replogle has 1,092 single-gene perturbations, but only 412 targets are in the 5,000-gene panel (common support for B2), and 22 have fewer than 30 cells (dropped; 1,070 kept). GEARS lists `A+ctrl` and `ctrl+A` separately; `card.canonical_condition` merges them (Norman goes from 152 to 105 singles).
 - GO coverage: Replogle 1,063/1,070 targets have a GO edge, Norman 98/105 (`results/summary/*_go_coverage.json`). B3/B2-GO reach pspec_r ≈ 0.42–0.46 on Replogle (label-permuted graph: 0.006). B3 beats the split-half ceiling for 49% of perturbations, so the ceiling is conservative (DECISIONS). This sets a high bar for M2 in C4/C5.
-- Fold-0 smoke (Replogle, all perturbations): M2 pspec_r 0.39 vs M1 0.11, M3 0.03–0.05, M3b 0.06; B3 0.42. M2 stopped at the 300-epoch cap (logged).
+- Grid, seed-averaged (Replogle, all perturbations; sanity look, not the stats): pspec_r M2 0.435, M1 0.103, M3 0.046, M3b 0.041, B3 0.458, B2-GO 0.449. Replogle M2 hit the 300-epoch cap in 3/25 runs (logged). On Norman the learned models are below B1 on raw_r (logged as exploratory).
 - B0 scores pspec_r > 0 (Replogle ~0.06–0.09) while B1 = 0 by construction; read pspec_r against B0 too (logged in DECISIONS as exploratory).
 
 ## Hard rules (never break these)
