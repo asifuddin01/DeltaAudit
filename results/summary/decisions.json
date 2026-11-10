@@ -1,0 +1,66 @@
+{
+  "norman": {
+    "H1": {
+      "supported": true,
+      "C1_ci_hi": -0.04311942388095238,
+      "rho": 0.9861911673232427,
+      "best_learned": "M2"
+    },
+    "H2": {
+      "supported": true,
+      "C2_significant_positive": true,
+      "B2_mean_pspec_r": 0.07771647274588167,
+      "mean_ceil_pspec": 0.8448483088916843,
+      "far_below_ceiling": true
+    },
+    "H3": {
+      "status": "stands"
+    },
+    "H4a": {
+      "supported": true
+    },
+    "H4b": {
+      "supported": true
+    },
+    "C6": {
+      "obs": 0.1498834097142857,
+      "ci_lo": 0.05965192144761905,
+      "ci_hi": 0.24018572499047616,
+      "p_holm": 0.008399160083991601
+    }
+  },
+  "replogle_k562": {
+    "H1": {
+      "supported": false,
+      "C1_ci_hi": 0.14484667604002463,
+      "rho": 0.9976797218176529,
+      "best_learned": "M2"
+    },
+    "H2": {
+      "supported": true,
+      "C2_significant_positive": true,
+      "B2_mean_pspec_r": 0.19131968492119542,
+      "mean_ceil_pspec": 0.5187185782892512,
+      "far_below_ceiling": true
+    },
+    "H3": {
+      "status": "stands"
+    },
+    "H4a": {
+      "supported": true
+    },
+    "H4b": {
+      "supported": true
+    },
+    "C6": {
+      "obs": 0.23173762424532018,
+      "ci_lo": 0.2040062700595074,
+      "ci_hi": 0.2593998243447291,
+      "p_holm": 0.0005999400059994001
+    }
+  },
+  "n_clusters": {
+    "norman": 55,
+    "replogle_k562": 273
+  }
+}

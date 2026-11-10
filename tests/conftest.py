@@ -12,6 +12,7 @@ import yaml
 from deltaaudit.data import go_graph
 from deltaaudit.data.pseudobulk import preprocess
 from deltaaudit.data.splits import seen_2of2_split, unseen_single_splits
+from deltaaudit.eval.ceilings import describe
 
 ROOT = Path(__file__).resolve().parents[1]
 CFG = yaml.safe_load((ROOT / "tests/fixtures/tiny.yaml").read_text())
@@ -27,6 +28,10 @@ def tiny_root(tmp_path_factory):
     preprocess(ROOT, CFG, processed)
     meta = pd.read_parquet(processed / "meta.parquet")
     genes = pd.read_parquet(processed / "genes.parquet")
+    tables = ("delta", "pb_half_A", "pb_half_B", "meta", "genes")
+    describe(*(pd.read_parquet(processed / f"{n}.parquet") for n in tables)).to_parquet(
+        processed / "descriptive.parquet"
+    )
     out = root / "data/splits/tiny"
     out.mkdir(parents=True)
     for s in unseen_single_splits(meta, SPLITS, "tiny"):

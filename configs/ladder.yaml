@@ -1,0 +1,17 @@
+# Validation ladder (BUILD_GUIDE F4). Rename `name` freely; `test` and `vs` drive the code.
+# A rung is cleared on the primary dataset and analysis set; a model's rung is the highest one
+# it clears continuously from L0. `beats`: the paired-bootstrap 95% CI of d = A - B lies on the
+# `sign` side of 0. `positive`: the CI of the mean lies above 0. Reporting frame, not Holm-gated.
+rungs:
+  - {id: L0, name: Integrity, test: integrity}
+  - {id: L1, name: Fit, test: fit}
+  - id: L2
+    name: Beats no-change
+    test: beats
+    vs: [{model: B0, metric: raw_r, sign: 1}, {model: B0, metric: mse, sign: -1}]
+  - {id: L3, name: Beats the mean, test: beats, vs: [{model: B1, metric: pspec_r, sign: 1}]}
+  - {id: L4, name: Specific signal, test: positive, metric: pspec_r}
+  - {id: L5, name: Beats linear, test: beats, vs: [{model: B2, metric: pspec_r, sign: 1}]}
+  - {id: L6, name: Prior content matters, test: beats, applies_to: [M2],
+     vs: [{model: M3, metric: pspec_r, sign: 1}]}
+  - {id: L7, name: Replicates, test: replicates}   # same sign on secondary.yaml replication_dataset

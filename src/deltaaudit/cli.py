@@ -433,3 +433,70 @@ def train(
         ROOT / SUMMARY / "learned_by_run.csv", index=False, float_format="%.6g"
     )
     typer.echo(f"wrote {SUMMARY}/learned_by_run.csv ({len(table)} rows)")
+
+
+def _phase8_configs() -> tuple[dict, dict]:
+    from deltaaudit.data.leakage import require_prereg, verify_split_files
+
+    require_prereg(ROOT)
+    if problems := verify_split_files(ROOT):
+        raise typer.BadParameter("; ".join(problems))
+
+    def load(n: str) -> dict:
+        return yaml.safe_load((ROOT / "configs" / f"{n}.yaml").read_text())
+
+    return load("eval"), load("secondary")
+
+
+@app.command()
+def evaluate(
+    names: list[str] = typer.Argument(None, help="Dataset config names."),
+    all_: bool = typer.Option(
+        False, "--all", help="Every config with a splits section."
+    ),
+) -> None:
+    """Seed-averaged per-perturbation scores + F2 diagnostics -> results/summary/{scores.csv, model_table.csv, diagnosis.json}."""
+    from deltaaudit.eval.audit import run_evaluate
+
+    eval_cfg, sec_cfg = _phase8_configs()
+    if not names and not all_:
+        all_ = True
+    ds = [c["name"] for c in load_configs(names, all_) if "splits" in c]
+    out = run_evaluate(ROOT, ds, eval_cfg, sec_cfg)
+    for n in ds:
+        best = out["diagnosis"][n]["best_learned"]
+        typer.echo(
+            f"{n}: best learned by inner-val raw_r = {best['selected']} {best['val_raw_r']}"
+        )
+    typer.echo(
+        f"wrote {SUMMARY}/scores.csv ({len(out['scores'])} rows), model_table.csv, diagnosis.json"
+    )
+
+
+@app.command()
+def stats() -> None:
+    """Paired bootstrap + Holm (C1-C6 and secondary), cluster bootstrap, decisions, ladder ->
+    results/summary/{comparisons.csv, decisions.json, ladder.csv}. Run `evaluate` first.
+    """
+    from deltaaudit.eval.audit import run_stats
+
+    eval_cfg, sec_cfg = _phase8_configs()
+    go_cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text())["go_graph"]
+    src = yaml.safe_load((ROOT / DATASET_DIR / "go.yaml").read_text())
+    gaf = (
+        ROOT
+        / "data/raw"
+        / src["name"]
+        / src["assets"][0]["id"]
+        / src["assets"][0]["filename"]
+    )
+    rungs = yaml.safe_load((ROOT / "configs" / "ladder.yaml").read_text())["rungs"]
+    out = run_stats(ROOT, eval_cfg, sec_cfg, rungs, gaf, go_cfg)
+    c = out["comparisons"]
+    fam = c[(c.family == "primary") & (c.stratum == "")]
+    for r in fam.itertuples():
+        typer.echo(f"{r.id} {r.a} vs {r.b} ({r.metric}): d={r.obs:+.4f} "
+                   f"[{r.ci_lo:+.4f}, {r.ci_hi:+.4f}] p={r.p_raw:.4g} p_holm={r.p_holm:.4g}")  # fmt: skip
+    typer.echo(
+        f"wrote {SUMMARY}/comparisons.csv ({len(c)} rows), decisions.json, ladder.csv"
+    )

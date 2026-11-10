@@ -61,9 +61,8 @@ def resolve(
     return out, n_syn
 
 
-def jaccard_knn(
-    term_sets: list[set[str]], top_k: int, min_jaccard: float
-) -> sp.csr_matrix:
+def jaccard_matrix(term_sets: list[set[str]]) -> np.ndarray:
+    """Dense n x n Jaccard of term sets; 0 where both are empty, diagonal kept."""
     # ponytail: dense n x n Jaccard; fine for ~1k perturbation targets, go sparse for genome-wide.
     vocab = {t: i for i, t in enumerate(sorted(set().union(*term_sets)))}
     rows = [i for i, s in enumerate(term_sets) for _ in s]
@@ -74,7 +73,13 @@ def jaccard_knn(
     inter = (m @ m.T).toarray()
     size = np.diag(inter).copy()
     union = size[:, None] + size[None, :] - inter
-    j = np.divide(inter, union, out=np.zeros_like(inter), where=union > 0)
+    return np.divide(inter, union, out=np.zeros_like(inter), where=union > 0)
+
+
+def jaccard_knn(
+    term_sets: list[set[str]], top_k: int, min_jaccard: float
+) -> sp.csr_matrix:
+    j = jaccard_matrix(term_sets)
     np.fill_diagonal(j, 0.0)
     j[j < min_jaccard] = 0.0
     keep = np.argsort(-j, axis=1, kind="stable")[:, :top_k]

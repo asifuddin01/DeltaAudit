@@ -95,11 +95,18 @@ def make_learned(
             keep_val, cfg, seed, device, tol,
         )  # fmt: skip
         net.eval()
+
+        def to_np(conds: list[str]) -> np.ndarray:
+            xt = torch.as_tensor(x[rows(conds)], dtype=torch.float32, device=device)
+            return net(xt).cpu().numpy().astype(np.float64)
+
         with torch.no_grad():
-            xt = torch.as_tensor(
-                x[rows(split["test"])], dtype=torch.float32, device=device
-            )
-            f = net(xt).cpu().numpy().astype(np.float64)
+            f = to_np(split["test"])
+            # raw_r on inner validation: selects the best learned model for C1 (prereg 6)
+            info["val_raw_r"] = (
+                float(pearson_or_zero(mu + to_np(val), y_val + mu, keep_val, tol)[0].mean())
+                if len(val) else None
+            )  # fmt: skip
         out = pd.DataFrame(mu + f, index=split["test"], columns=data["delta"].columns)
         out.attrs["fit_info"] = {**info, "variant": variant, "perm": perm}
         return out

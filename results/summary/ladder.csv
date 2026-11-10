@@ -1,0 +1,10 @@
+model,dataset,analysis_set,L0,L1,L2,L3,L4,L5,L6,L7,highest_rung,highest_rung_name
+B0,replogle_k562,common_support,True,True,False,True,True,False,False,True,L1,Fit
+B1,replogle_k562,common_support,True,True,True,False,False,False,False,True,L2,Beats no-change
+B2,replogle_k562,common_support,True,True,True,True,True,False,False,False,L4,Specific signal
+B2-GO,replogle_k562,common_support,True,True,True,True,True,True,False,True,L5,Beats linear
+B3,replogle_k562,common_support,True,True,True,True,True,True,False,True,L5,Beats linear
+M1,replogle_k562,common_support,True,True,True,True,True,False,False,False,L4,Specific signal
+M2,replogle_k562,common_support,True,True,True,True,True,True,True,False,L6,Prior content matters
+M3,replogle_k562,common_support,True,True,False,True,True,False,False,True,L1,Fit
+M3b,replogle_k562,common_support,True,True,False,True,True,False,False,True,L1,Fit

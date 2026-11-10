@@ -1,0 +1,12 @@
+# Added in Phase 8, after the prereg tag. Makes the secondary analyses of prereg section 8
+# machine-readable. Nothing here is in the Holm-gated primary family (eval.yaml `family`).
+replication_dataset: norman
+family_sets: [common_support, all, out_of_panel]  # C1-C6 re-run per set, Holm within each set
+out_of_panel_strata:                              # prereg 8: out-of-panel C4/C5 by GO neighbour
+  comparisons: [C4, C5]
+  by: has_go_neighbour                            # target has a GO neighbour among train+val (B3 did not fall back)
+doubles:                                          # prereg 8: B4 vs B1 vs B0 on the seen-2/2 doubles
+  pairs: [[B4, B1], [B4, B0], [B1, B0]]
+  metrics: [raw_r, pspec_r]
+example_perturbation:                             # F2 (iv): best learned model, high raw_r, ~0 pspec_r
+  max_abs_pspec_r: 0.05

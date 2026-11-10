@@ -19,8 +19,10 @@ def describe(
     half_b: pd.DataFrame,
     meta: pd.DataFrame,
     genes: pd.DataFrame,
+    mu: np.ndarray | None = None,
 ) -> pd.DataFrame:
-    """Per perturbation: sys_cos = cos(delta_p, mu_all); ceil_raw and ceil_pspec from half-splits."""
+    """Per perturbation: sys_cos = cos(delta_p, mu_all); ceil_raw and ceil_pspec from half-splits.
+    `mu` (e.g. a fold's train+val mean) replaces mu_all in ceil_pspec when given."""
     perts = delta.index
     targets = meta.set_index("condition").loc[perts, "targets"].tolist()
     keep = ~target_mask(
@@ -28,13 +30,14 @@ def describe(
         genes.set_index("ensembl_id").loc[delta.columns, "gene_symbol"].to_numpy(),
     )
     d = delta.to_numpy(np.float64)
-    mu = d.mean(axis=0, keepdims=True)
+    mu_all = d.mean(axis=0, keepdims=True)
+    mu = mu_all if mu is None else np.asarray(mu, dtype=np.float64)[None]
     da = (half_a.loc[perts] - half_a.loc[CTRL]).to_numpy(np.float64)
     db = (half_b.loc[perts] - half_b.loc[CTRL]).to_numpy(np.float64)
     return pd.DataFrame(
         {
             "condition": perts,
-            "sys_cos": rowwise_cosine(d, np.broadcast_to(mu, d.shape), keep),
+            "sys_cos": rowwise_cosine(d, np.broadcast_to(mu_all, d.shape), keep),
             "ceil_raw": rowwise_pearson(da, db, keep),
             "ceil_pspec": rowwise_pearson(da - mu, db - mu, keep),
             "n_eval_genes": keep.sum(axis=1),
