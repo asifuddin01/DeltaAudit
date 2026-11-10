@@ -1,0 +1,48 @@
+{
+  "device": "mps",
+  "datasets": {
+    "norman": {
+      "models": {
+        "M1": {
+          "s_per_run": 7.12,
+          "n_runs_full_grid": 25
+        },
+        "M2": {
+          "s_per_run": 0.69,
+          "n_runs_full_grid": 25
+        },
+        "M3": {
+          "s_per_run": 0.5766666666666667,
+          "n_runs_full_grid": 75
+        },
+        "M3b": {
+          "s_per_run": 0.44,
+          "n_runs_full_grid": 25
+        }
+      },
+      "projected_full_grid_h": 0.06930555555555555
+    },
+    "replogle_k562": {
+      "models": {
+        "M1": {
+          "s_per_run": 3.55,
+          "n_runs_full_grid": 25
+        },
+        "M2": {
+          "s_per_run": 6.08,
+          "n_runs_full_grid": 25
+        },
+        "M3": {
+          "s_per_run": 2.16,
+          "n_runs_full_grid": 75
+        },
+        "M3b": {
+          "s_per_run": 2.23,
+          "n_runs_full_grid": 25
+        }
+      },
+      "projected_full_grid_h": 0.12736111111111112
+    }
+  },
+  "projected_full_grid_h": 0.19666666666666666
+}

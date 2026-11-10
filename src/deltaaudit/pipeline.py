@@ -12,12 +12,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 
 from deltaaudit.data import go_graph
 from deltaaudit.data.leakage import SPLITS_DIR, fit_rows
 from deltaaudit.eval.metrics import score, target_mask
 from deltaaudit.eval.stats import bootstrap_ci
-from deltaaudit.manifest import build_manifest
+from deltaaudit.manifest import build_manifest, up_to_date
 
 PROCESSED = Path("data/processed")
 RESULTS = Path("results")
@@ -32,12 +33,20 @@ def load_dataset(root: Path, name: str) -> dict:
     data = {k: pd.read_parquet(d / f"{k}.parquet") for k in tables}
     data["name"] = name
     data["inputs"] = [f"{PROCESSED}/{name}/{k}.parquet" for k in tables]
-    if (d / go_graph.GO_DIR / "graph.npz").exists():
-        data["go"] = go_graph.load(d)
-        data["inputs"] += [
-            f"{PROCESSED}/{name}/{go_graph.GO_DIR}/{f}"
-            for f in ("graph.npz", "nodes.json")
-        ]
+    if (d / "ctrl_embed.parquet").exists():
+        data["ctrl_embed"] = pd.read_parquet(d / "ctrl_embed.parquet")
+        data["inputs"].append(f"{PROCESSED}/{name}/ctrl_embed.parquet")
+    for key, sub in (("go", go_graph.GO_DIR), ("go_union", go_graph.GO_UNION_DIR)):
+        if (d / sub / "graph.npz").exists():
+            data[key] = go_graph.load(d, sub)
+            data["inputs"] += [
+                f"{PROCESSED}/{name}/{sub}/{f}" for f in ("graph.npz", "nodes.json")
+            ]
+    if (d / go_graph.GO_UNION_DIR / "rewired.npz").exists():
+        data["go_rewired"] = sp.load_npz(
+            d / go_graph.GO_UNION_DIR / "rewired.npz"
+        ).tocsr()
+        data["inputs"].append(f"{PROCESSED}/{name}/{go_graph.GO_UNION_DIR}/rewired.npz")
     data["symbols"] = (
         data["genes"]
         .set_index("ensembl_id")
@@ -115,10 +124,25 @@ def run_model(
     model: str,
     predict: Predictor,
     config: dict,
+    run: str = "",
+    resume: bool = False,
+    log=lambda _: None,
 ) -> pd.DataFrame:
-    """Fit/predict/score every split; write results/<dataset>/<model>/<split>/{pred.npy, scores.parquet, MANIFEST.json}."""
+    """Fit/predict/score every split; write
+    results/<dataset>/<model>/[<run>/]<split>/{pred.npy, scores.parquet, MANIFEST.json}.
+    With resume, a split whose MANIFEST matches config, code and inputs is read back, not refit.
+    """
     all_scores = []
     for split in splits:
+        out = root / RESULTS / data["name"] / model / run / split_tag(split)
+        inputs = data["inputs"] + [
+            f"{SPLITS_DIR}/{data['name']}/{split_tag(split)}.json"
+        ]
+        conf = {"model": model, "config": config, "eval": eval_cfg}
+        if resume and up_to_date(out / "MANIFEST.json", root, conf, inputs):
+            all_scores.append(pd.read_parquet(out / "scores.parquet"))
+            log(f"{data['name']}/{model}/{run}/{split_tag(split)}: up to date, skipped")
+            continue
         t0 = time.time()
         fit = fit_rows(data["delta"], split)
         test = split["test"]
@@ -129,21 +153,23 @@ def run_model(
         pred[fallback] = fit_mu(data["delta"], split)
         scores = evaluate_split(pred, fallback, split, data, eval_cfg)
         scores.insert(1, "model", model)
+        scores.insert(2, "run", run)
 
-        out = root / RESULTS / data["name"] / model / split_tag(split)
         out.mkdir(parents=True, exist_ok=True)
         np.save(out / "pred.npy", pred.astype(np.float32))
         scores.to_parquet(out / "scores.parquet")
-        inputs = data["inputs"] + [
-            f"{SPLITS_DIR}/{data['name']}/{split_tag(split)}.json"
-        ]
-        manifest = build_manifest(
-            root, {"model": model, "config": config, "eval": eval_cfg}, inputs, t0
-        )
+        manifest = build_manifest(root, conf, inputs, t0)
         manifest["test_rows"] = test
         manifest["fit_info"] = raw.attrs.get("fit_info", {})
+        if "device" in manifest["fit_info"]:
+            manifest["device"] = manifest["fit_info"][
+                "device"
+            ]  # the device actually used
         (out / "MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n")
         all_scores.append(scores)
+        log(
+            f"{data['name']}/{model}/{run}/{split_tag(split)}: {manifest['wall_time_s']:.1f} s"
+        )
     return pd.concat(all_scores, ignore_index=True)
 
 
@@ -151,7 +177,8 @@ def summarize(
     scores: pd.DataFrame, metrics: list[str], stats_cfg: dict
 ) -> pd.DataFrame:
     """Mean and bootstrap CI per (dataset, model, split_type, analysis_set, fold|pooled, metric)."""
-    keys = ["dataset", "model", "split_type", "analysis_set"]
+    keys = ["dataset", "model", "run", "split_type", "analysis_set"]
+    scores = scores.assign(run=scores["run"].fillna("") if "run" in scores else "")
     rows = []
     for key, g in scores.groupby(keys, sort=True):
         parts = [("pooled", g)] + [(str(f), gf) for f, gf in g.groupby("fold")]

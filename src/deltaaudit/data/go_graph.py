@@ -1,7 +1,8 @@
-"""GO Jaccard kNN graph over a dataset's perturbation targets, plus label-shuffle and spectral views.
+"""GO Jaccard kNN graphs, plus label-shuffle, rewired and spectral views.
 
-Nodes are the targets of the dataset's QC-passing single perturbations (test targets included:
-the graph uses only GO annotations, never expression, so it carries no fold information).
+Two node sets: the targets of the QC-passing singles (B2-GO, B3), and panel genes + targets
+(learned models). Test targets are included: the graph uses only GO annotations, never
+expression, so it carries no fold information.
 Edge weight = Jaccard of GO term sets; keep each node's top_k neighbours with J >= min_jaccard,
 then symmetrize by max. No self-loops (the SGC adds its own in Phase 6).
 """
@@ -15,7 +16,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-GO_DIR = "go"  # under data/processed/<dataset>/
+GO_DIR = "go"  # under data/processed/<dataset>/: targets only (B2-GO, B3)
+GO_UNION_DIR = "go_union"  # panel genes + targets (learned models)
 # GAF 2.x columns (0-based)
 SYMBOL, QUALIFIER, GO_ID, EVIDENCE, ASPECT, SYNONYMS = 2, 3, 4, 6, 8, 10
 
@@ -121,10 +123,37 @@ def spectral_embedding(adj: sp.csr_matrix, k: int) -> np.ndarray:
     return out
 
 
-def build(meta: pd.DataFrame, gaf_path: Path, go_cfg: dict, out_dir: Path) -> dict:
+def target_nodes(meta: pd.DataFrame) -> list[str]:
+    """Targets of the QC-passing singles (graph for B2-GO and B3)."""
+    return sorted({t for ts in meta.loc[~meta["is_double"], "targets"] for t in ts})
+
+
+def union_nodes(meta: pd.DataFrame, genes: pd.DataFrame) -> list[str]:
+    """Panel genes plus targets (graph for the learned models, BUILD_GUIDE E2)."""
+    return sorted(set(genes["gene_symbol"]) | set(target_nodes(meta)))
+
+
+def rewire(adj: sp.csr_matrix, nswap_per_edge: int, seed: int) -> sp.csr_matrix:
+    """Degree-preserving double-edge swap (M3b null); the original weights are reassigned
+    at random to the rewired edges."""
+    import networkx as nx
+
+    g = nx.from_scipy_sparse_array(adj)
+    n_edges = g.number_of_edges()
+    nx.double_edge_swap(
+        g,
+        nswap=nswap_per_edge * n_edges,
+        max_tries=100 * nswap_per_edge * n_edges,
+        seed=seed,
+    )
+    weights = np.random.default_rng(seed).permutation(sp.triu(adj, k=1).data)
+    edges = np.array(sorted(tuple(sorted(e)) for e in g.edges()))
+    a = sp.coo_matrix((weights, (edges[:, 0], edges[:, 1])), shape=adj.shape)
+    return (a + a.T).tocsr()
+
+
+def build(nodes: list[str], gaf_path: Path, go_cfg: dict, out_dir: Path) -> dict:
     """Write out_dir/{graph.npz, nodes.json}; return coverage facts."""
-    singles = meta[~meta["is_double"]]
-    nodes = sorted({t for ts in singles["targets"] for t in ts})
     terms, syn = read_gaf(gaf_path, go_cfg["aspects"], go_cfg["exclude_evidence"])
     sets, n_syn = resolve(nodes, terms, syn)
     adj = jaccard_knn(sets, go_cfg["top_k"], go_cfg["min_jaccard"])
@@ -134,8 +163,8 @@ def build(meta: pd.DataFrame, gaf_path: Path, go_cfg: dict, out_dir: Path) -> di
     return {**coverage(adj, sets), "n_via_synonym": n_syn, "release": go_cfg["release"]}
 
 
-def load(processed: Path) -> tuple[list[str], sp.csr_matrix]:
-    d = processed / GO_DIR
+def load(processed: Path, sub: str = GO_DIR) -> tuple[list[str], sp.csr_matrix]:
+    d = processed / sub
     return (
         json.loads((d / "nodes.json").read_text()),
         sp.load_npz(d / "graph.npz").tocsr(),

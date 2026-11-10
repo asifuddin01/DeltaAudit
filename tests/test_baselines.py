@@ -1,53 +1,13 @@
-import gzip
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
-import yaml
+from conftest import EVAL, MODELS, fold0  # noqa: E402
 
-from deltaaudit.data import go_graph
 from deltaaudit.data.leakage import LeakageError, fit_rows, require_prereg
-from deltaaudit.data.pseudobulk import preprocess
-from deltaaudit.data.splits import seen_2of2_split, unseen_single_splits
 from deltaaudit.models.baselines import predict_b1, registry, run_baselines
 from deltaaudit.pipeline import fit_mu, load_dataset, load_splits, summarize
-
-ROOT = Path(__file__).resolve().parents[1]
-CFG = yaml.safe_load((ROOT / "tests/fixtures/tiny.yaml").read_text())
-EVAL = yaml.safe_load((ROOT / "configs/eval.yaml").read_text())
-MODELS = yaml.safe_load((ROOT / "configs/models.yaml").read_text())
-SPLITS = {"n_folds": 5, "val_frac": 0.1, "seed": 0}
-
-
-@pytest.fixture(scope="module")
-def tiny_root(tmp_path_factory):
-    root = tmp_path_factory.mktemp("root")
-    preprocess(ROOT, CFG, root / "data/processed/tiny")
-    meta = pd.read_parquet(root / "data/processed/tiny/meta.parquet")
-    out = root / "data/splits/tiny"
-    out.mkdir(parents=True)
-    for s in unseen_single_splits(meta, SPLITS, "tiny"):
-        (out / f"fold_{s['fold']}.json").write_text(json.dumps(s))
-    (out / "doubles_seen_2of2.json").write_text(
-        json.dumps(seen_2of2_split(meta, "tiny"))
-    )
-    # Synthetic GAF: G-genes share a group term (i % 5) plus a private one; X03 is unannotated.
-    genes = [f"G{i:03d}" for i in range(40)] + ["X00", "X01", "X02"]
-    rows = [(g, f"GO:{i % 5}") for i, g in enumerate(genes)]
-    rows += [(g, f"GO:1{i:03d}") for i, g in enumerate(genes)]
-    gaf = root / "tiny.gaf.gz"
-    with gzip.open(gaf, "wt") as f:
-        for g, t in rows:
-            f.write(
-                "\t".join(
-                    ["UniProtKB", g, g, "involved_in", t, "", "IDA", "", "P", "", ""]
-                )
-                + "\n"
-            )
-    go_graph.build(meta, gaf, MODELS["go_graph"], root / "data/processed/tiny/go")
-    return root
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +44,7 @@ def test_results_written_with_manifest(tiny_root, scores):
 def test_b1_ignores_corrupted_test_rows(tiny_root):
     """Rule 3: corrupting test rows with NaN must not change what is fitted."""
     data = load_dataset(tiny_root, "tiny")
-    split = load_splits(tiny_root, "tiny")[0]
+    split = fold0(tiny_root)
     clean = fit_mu(data["delta"], split)
     data["delta"].loc[split["test"]] = np.nan
     np.testing.assert_array_equal(fit_mu(data["delta"], split), clean)
@@ -147,7 +107,7 @@ def test_b2_selection_recorded_in_manifest(tiny_root, scores):
 def test_fitted_models_ignore_corrupted_test_rows(tiny_root, model):
     """Rule 3: NaN in test rows (delta and expression) must not change any prediction."""
     predict = registry(MODELS, EVAL)[model][0]
-    split = load_splits(tiny_root, "tiny")[0]
+    split = fold0(tiny_root)
     clean_data = load_dataset(tiny_root, "tiny")
     clean = predict(clean_data, split, fit_rows(clean_data["delta"], split))
     data = load_dataset(tiny_root, "tiny")

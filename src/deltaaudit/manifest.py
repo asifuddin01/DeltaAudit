@@ -8,6 +8,7 @@ import resource
 import subprocess
 import sys
 import time
+from functools import lru_cache
 from importlib.metadata import version
 from pathlib import Path
 
@@ -47,6 +48,19 @@ def code_hash() -> str:
     return h.hexdigest()
 
 
+@lru_cache(maxsize=256)
+def _cached_hash(path: str, mtime_ns: int, size: int) -> str:
+    return sha256_file(Path(path))
+
+
+def _input_hash(path: Path) -> str:
+    """sha256 of a pipeline input, cached per (path, mtime, size): a training grid checks the
+    same processed files hundreds of times. Raw-data verification never uses this cache.
+    """
+    st = path.stat()
+    return _cached_hash(str(path), st.st_mtime_ns, st.st_size)
+
+
 def up_to_date(
     manifest_path: Path, root: Path, config: dict, inputs: list[str]
 ) -> bool:
@@ -59,7 +73,7 @@ def up_to_date(
         old.get("config_hash") == config_hash(config)
         and old.get("code_hash") == code_hash()
         and old.get("inputs")
-        == {p: pins.get(p) or sha256_file(root / p) for p in inputs}
+        == {p: pins.get(p) or _input_hash(root / p) for p in inputs}
     )
 
 
@@ -79,7 +93,7 @@ def build_manifest(root: Path, config: dict, inputs: list[str], t0: float) -> di
         "git_sha": git_sha(root),
         "config_hash": config_hash(config),
         "code_hash": code_hash(),
-        "inputs": {p: pins.get(p) or sha256_file(root / p) for p in inputs},
+        "inputs": {p: pins.get(p) or _input_hash(root / p) for p in inputs},
         "device": pick_device(),
         "python": platform.python_version(),
         "versions": {p: version(p) for p in PACKAGES},

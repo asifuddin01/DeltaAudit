@@ -173,16 +173,18 @@ def go_graph_cmd(
         False, help="Rebuild even if MANIFEST.json is up to date."
     ),
 ) -> None:
-    """GO Jaccard kNN graph over each dataset's targets -> data/processed/<ds>/go/, coverage summary."""
+    """GO Jaccard kNN graphs (targets -> go/, panel+targets -> go_union/ with the M3b rewire) and coverage."""
     import json
     import time
 
     import pandas as pd
+    import scipy.sparse as sp
 
     from deltaaudit.data import go_graph
     from deltaaudit.manifest import build_manifest, up_to_date
 
-    go_cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text())["go_graph"]
+    models_cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text())
+    go_cfg, m3b = models_cfg["go_graph"], models_cfg["learned"]["M3b"]
     src = yaml.safe_load((ROOT / DATASET_DIR / "go.yaml").read_text())
     if src["release"] != go_cfg["release"]:
         raise typer.BadParameter(
@@ -193,25 +195,36 @@ def go_graph_cmd(
     (ROOT / SUMMARY).mkdir(parents=True, exist_ok=True)
     for cfg in (c for c in load_configs(names, all_) if "h5ad" in c):
         d = PROCESSED / cfg["name"]
-        out = ROOT / d / go_graph.GO_DIR
-        inputs = [gaf, f"{d}/meta.parquet"]
-        if not force and up_to_date(out / "MANIFEST.json", ROOT, go_cfg, inputs):
-            typer.echo(f"{cfg['name']}: GO graph up to date, skipped")
-            continue
-        t0 = time.time()
-        cov = go_graph.build(
-            pd.read_parquet(ROOT / d / "meta.parquet"), ROOT / gaf, go_cfg, out
-        )
-        m = build_manifest(ROOT, go_cfg, inputs, t0)
-        (out / "MANIFEST.json").write_text(json.dumps(m, indent=2) + "\n")
-        summary = {"dataset": cfg["name"], **cov}
-        (ROOT / SUMMARY / f"{cfg['name']}_go_coverage.json").write_text(
-            json.dumps(summary, indent=2) + "\n"
-        )
-        typer.echo(
-            f"{cfg['name']}: {cov['n_with_edge']}/{cov['n_nodes']} targets have a GO edge "
-            f"({cov['n_annotated']} annotated, {cov['n_via_synonym']} via synonym), {cov['n_edges']} edges"
-        )
+        meta = pd.read_parquet(ROOT / d / "meta.parquet")
+        genes = pd.read_parquet(ROOT / d / "genes.parquet")
+        graphs = {
+            "targets": (go_graph.GO_DIR, go_graph.target_nodes(meta), go_cfg),
+            "union": (go_graph.GO_UNION_DIR, go_graph.union_nodes(meta, genes), {**go_cfg, "M3b": m3b}),
+        }  # fmt: skip
+        summary_path = ROOT / SUMMARY / f"{cfg['name']}_go_coverage.json"
+        old = json.loads(summary_path.read_text()) if summary_path.exists() else {}
+        summary = {"dataset": cfg["name"], **{k: old[k] for k in graphs if k in old}}
+        for key, (sub, nodes, conf) in graphs.items():
+            out = ROOT / d / sub
+            inputs = [gaf, f"{d}/meta.parquet", f"{d}/genes.parquet"]
+            if not force and up_to_date(out / "MANIFEST.json", ROOT, conf, inputs):
+                typer.echo(f"{cfg['name']}/{key}: GO graph up to date, skipped")
+                continue
+            t0 = time.time()
+            cov = go_graph.build(nodes, ROOT / gaf, go_cfg, out)
+            if key == "union":
+                nodes_, adj = go_graph.load(ROOT / d, sub)
+                rw = go_graph.rewire(adj, m3b["nswap_per_edge"], m3b["seed"])
+                sp.save_npz(out / "rewired.npz", rw)
+            m = build_manifest(ROOT, conf, inputs, t0)
+            (out / "MANIFEST.json").write_text(json.dumps(m, indent=2) + "\n")
+            summary[key] = cov
+            typer.echo(
+                f"{cfg['name']}/{key}: {cov['n_with_edge']}/{cov['n_nodes']} nodes have a GO edge "
+                f"({cov['n_annotated']} annotated, {cov['n_via_synonym']} via synonym), "
+                f"{cov['n_edges']} edges, {time.time() - t0:.0f} s"
+            )
+        summary_path.write_text(json.dumps(summary, indent=2) + "\n")
 
 
 FIGURES = Path("reports/figures")
@@ -312,3 +325,111 @@ def baselines(
     (ROOT / SUMMARY).mkdir(parents=True, exist_ok=True)
     table.to_csv(ROOT / SUMMARY / "baselines.csv", index=False, float_format="%.6g")
     typer.echo(f"wrote {SUMMARY}/baselines.csv ({len(table)} rows)")
+
+
+@app.command()
+def train(
+    names: list[str] = typer.Argument(None, help="Dataset config names."),
+    all_: bool = typer.Option(
+        False, "--all", help="Every config with a splits section."
+    ),
+    models: str = typer.Option("M1,M2,M3,M3b", help="Comma-separated learned models."),
+    folds: str = typer.Option("", help="Comma-separated folds (default: all)."),
+    seeds: str = typer.Option(
+        "", help="Comma-separated seeds (default: eval.yaml learned_seeds)."
+    ),
+    device: str = typer.Option(
+        "auto", help="auto (cuda > mps > cpu), cuda, mps or cpu."
+    ),
+    smoke: bool = typer.Option(
+        False, help="Fold 0, seed 0, every model; time it and project the grid."
+    ),
+) -> None:
+    """Train/score learned models (resumable) -> results/<ds>/<model>/<run>/fold_k/; timing + summary."""
+    import json
+
+    import pandas as pd
+
+    from deltaaudit.data.leakage import require_prereg, verify_split_files
+    from deltaaudit.manifest import pick_device
+    from deltaaudit.models.train import run_learned, runs
+    from deltaaudit.pipeline import (
+        RESULTS,
+        load_dataset,
+        load_splits,
+        split_tag,
+        summarize,
+    )
+
+    require_prereg(ROOT)
+    if problems := verify_split_files(ROOT):
+        raise typer.BadParameter("; ".join(problems))
+    eval_cfg = yaml.safe_load((ROOT / "configs" / "eval.yaml").read_text())
+    cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text())["learned"]
+    dev = pick_device() if device == "auto" else device
+    model_list = models.split(",")
+    seed_list = (
+        [0]
+        if smoke
+        else [int(s) for s in seeds.split(",")] if seeds else eval_cfg["learned_seeds"]
+    )
+    fold_list = [0] if smoke else [int(f) for f in folds.split(",")] if folds else None
+    if not names and not all_:
+        all_ = True
+    frames, timing = [], {"device": dev, "datasets": {}}
+    for c in (c for c in load_configs(names, all_) if "splits" in c):
+        data = load_dataset(ROOT, c["name"])
+        splits = [
+            s for s in load_splits(ROOT, c["name"])
+            if s["split_type"] == "unseen_single" and (fold_list is None or s["fold"] in fold_list)
+        ]  # fmt: skip
+        frames.append(
+            run_learned(
+                ROOT,
+                data,
+                splits,
+                eval_cfg,
+                cfg,
+                model_list,
+                seed_list,
+                dev,
+                typer.echo,
+            )
+        )
+        if smoke:
+            n_folds, n_seeds = c["splits"]["n_folds"], len(eval_cfg["learned_seeds"])
+            per_model = {}
+            for m in model_list:
+                secs = [
+                    json.loads((ROOT / RESULTS / c["name"] / m / r / split_tag(splits[0]) / "MANIFEST.json").read_text())["wall_time_s"]
+                    for r, _, _ in runs(m, cfg, eval_cfg, [0])
+                ]  # fmt: skip
+                per_model[m] = {
+                    "s_per_run": sum(secs) / len(secs),
+                    "n_runs_full_grid": len(secs) * n_folds * n_seeds,
+                }
+            total = sum(
+                v["s_per_run"] * v["n_runs_full_grid"] for v in per_model.values()
+            )
+            timing["datasets"][c["name"]] = {
+                "models": per_model,
+                "projected_full_grid_h": total / 3600,
+            }
+    scores = pd.concat(frames, ignore_index=True)
+    (ROOT / SUMMARY).mkdir(parents=True, exist_ok=True)
+    if smoke:
+        timing["projected_full_grid_h"] = sum(
+            d["projected_full_grid_h"] for d in timing["datasets"].values()
+        )
+        (ROOT / SUMMARY / "train_timing.json").write_text(
+            json.dumps(timing, indent=2) + "\n"
+        )
+        typer.echo(
+            f"projected full grid on {dev}: {timing['projected_full_grid_h']:.2f} h"
+        )
+        return
+    table = summarize(scores, eval_cfg["metrics"], eval_cfg["statistics"])
+    table.to_csv(
+        ROOT / SUMMARY / "learned_by_run.csv", index=False, float_format="%.6g"
+    )
+    typer.echo(f"wrote {SUMMARY}/learned_by_run.csv ({len(table)} rows)")

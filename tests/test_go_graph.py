@@ -107,3 +107,20 @@ def test_spectral_embedding_isolated_nodes_missing(gaf):
     assert e.shape == (6, 2)
     assert np.isnan(e[4]).all() and np.isnan(e[5]).all()
     assert np.isfinite(e[:4]).all()
+
+
+def test_rewire_preserves_degrees_and_weights():
+    from deltaaudit.data.go_graph import rewire
+
+    rng = np.random.default_rng(0)
+    sets = [set(rng.choice(30, 5, replace=False).tolist()) for _ in range(40)]
+    a = jaccard_knn(sets, top_k=4, min_jaccard=0.1)
+    r = rewire(a, nswap_per_edge=10, seed=0)
+    d = r.toarray()
+    np.testing.assert_array_equal(d, d.T)
+    assert (np.diag(d) == 0).all()
+    np.testing.assert_array_equal(
+        np.diff(a.indptr), np.diff(r.indptr)
+    )  # degree per node
+    np.testing.assert_allclose(np.sort(a.data), np.sort(r.data))
+    assert ((a.toarray() > 0) != (d > 0)).any()
