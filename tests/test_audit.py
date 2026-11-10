@@ -153,3 +153,52 @@ def test_ladder_known_answer():
     assert lad.at["B2", "highest_rung"] == "L4"  # cannot beat itself at L5
     assert lad.at["B1", "highest_rung"] == "L2"
     assert not lad.at["M3", "L5"]  # ties B2: CI not above 0
+
+
+def test_sensitivity_end_to_end(tiny_root, out):
+    """Phase 9 on tiny: HVG panels (fold 0), fold-0 refits, every analysis rendered."""
+    from conftest import CFG
+
+    from deltaaudit.eval.sensitivity import (
+        LABELS,
+        fit_fold,
+        hvg_panels,
+        run_sensitivity,
+    )
+
+    hcfg = {"dataset": "tiny", "fold": 0, "n_top": 120, "n_bins": 20}
+    ds_cfg = {**CFG, "h5ad": str(ROOT / "tests/fixtures/tiny.h5ad")}
+    names = hvg_panels(tiny_root, ds_cfg, hcfg, load_splits(tiny_root, "tiny"),
+                       MODELS["go_graph"], MODELS["learned"]["M3b"], tiny_root / "tiny.gaf.gz")  # fmt: skip
+    assert set(names) == {"all", "train"}
+    for n in names.values():
+        genes = pd.read_parquet(tiny_root / "data/processed" / n / "genes.parquet")
+        assert len(genes) == 120
+        fit_fold(
+            tiny_root,
+            n,
+            E,
+            {**MODELS, "learned": LEARNED},
+            0,
+            [0],
+            "cpu",
+            log=lambda _: None,
+        )
+    df = run_sensitivity(
+        tiny_root, E, {**SEC, "sensitivity": {"hvg_reselection": hcfg}}, names
+    )
+    assert set(df.verdict) <= {"+", "-", "0"}
+    assert set(LABELS) <= set(df.analysis)
+    md = (tiny_root / SUMMARY / "sensitivity.md").read_text()
+    for an in LABELS:
+        assert f"`{an}`" in md
+    assert "conclusion unchanged" in md or "changed because" in md
+    mu = df[df.analysis == "mu_all"].set_index("id")
+    main = (
+        out["comparisons"]
+        .query("family == 'primary' and stratum == ''")
+        .set_index("id")
+    )
+    assert mu.at["C1", "obs"] == pytest.approx(
+        main.at["C1", "obs"]
+    )  # raw_r does not use mu

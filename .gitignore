@@ -11,3 +11,6 @@ data/processed/
 results/*
 !results/summary/
 *.zip
+
+# Phase 9 derived HVG panels: rebuilt by `deltaaudit hvg-panels`
+data/splits/*__hvg_*/

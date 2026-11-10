@@ -500,3 +500,66 @@ def stats() -> None:
     typer.echo(
         f"wrote {SUMMARY}/comparisons.csv ({len(c)} rows), decisions.json, ladder.csv"
     )
+
+
+def _hvg_names(cfg: dict) -> dict[str, str]:
+    return {v: f"{cfg['dataset']}__hvg_{v}" for v in ("all", "train")}
+
+
+@app.command("hvg-panels")
+def hvg_panels_cmd(
+    device: str = typer.Option(
+        "auto", help="auto (cuda > mps > cpu), cuda, mps or cpu."
+    ),
+) -> None:
+    """Phase 9: re-select the gene panel from all cells vs control + train cells (one fold),
+    build both derived datasets and fit every single-perturbation model on that fold."""
+    from deltaaudit.eval.sensitivity import fit_fold, hvg_panels
+    from deltaaudit.pipeline import load_splits
+
+    eval_cfg, sec_cfg = _phase8_configs()
+    cfg = sec_cfg["sensitivity"]["hvg_reselection"]
+    models_cfg = yaml.safe_load((ROOT / "configs" / "models.yaml").read_text())
+    src = yaml.safe_load((ROOT / DATASET_DIR / "go.yaml").read_text())
+    gaf = (
+        ROOT
+        / "data/raw"
+        / src["name"]
+        / src["assets"][0]["id"]
+        / src["assets"][0]["filename"]
+    )
+    ds_cfg = load_configs([cfg["dataset"]], False)[0]
+    names = hvg_panels(ROOT, ds_cfg, cfg, load_splits(ROOT, cfg["dataset"]),
+                       models_cfg["go_graph"], models_cfg["learned"]["M3b"], gaf)  # fmt: skip
+    assert names == _hvg_names(cfg)
+    dev = pick_device() if device == "auto" else device
+    for n in names.values():
+        fit_fold(
+            ROOT,
+            n,
+            eval_cfg,
+            models_cfg,
+            cfg["fold"],
+            eval_cfg["learned_seeds"],
+            dev,
+            typer.echo,
+        )
+    typer.echo(f"built and fitted {', '.join(names.values())} (fold {cfg['fold']})")
+
+
+@app.command()
+def sensitivity() -> None:
+    """Phase 9 sensitivity analyses -> results/summary/{sensitivity.csv, sensitivity.md}.
+    Run `evaluate`, `stats` and `hvg-panels` first."""
+    from deltaaudit.eval.sensitivity import run_sensitivity
+
+    eval_cfg, sec_cfg = _phase8_configs()
+    names = _hvg_names(sec_cfg["sensitivity"]["hvg_reselection"])
+    if not all(
+        (ROOT / "data/processed" / n / "delta.parquet").exists() for n in names.values()
+    ):
+        raise typer.BadParameter(
+            "HVG panels missing: run `deltaaudit hvg-panels` first"
+        )
+    run_sensitivity(ROOT, eval_cfg, sec_cfg, names)
+    typer.echo((ROOT / SUMMARY / "sensitivity.md").read_text())

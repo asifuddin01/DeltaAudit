@@ -87,12 +87,15 @@ def fit_mu(delta: pd.DataFrame, split: dict) -> np.ndarray:
 
 
 def evaluate_split(
-    pred: np.ndarray, fallback: np.ndarray, split: dict, data: dict, eval_cfg: dict
-) -> pd.DataFrame:
+    pred: np.ndarray, fallback: np.ndarray, split: dict, data: dict, eval_cfg: dict,
+    mu: np.ndarray | None = None,
+) -> pd.DataFrame:  # fmt: skip
+    """F1 metrics per test perturbation. `mu` overrides the fold's train+val mean as the
+    pspec reference (Phase 9 sensitivity); the default is the pre-registered one."""
     test = split["test"]
     truth = data["delta"].loc[test].to_numpy(np.float64)
     keep = ~target_mask(data["meta"].loc[test, "targets"].tolist(), data["symbols"])
-    mu = fit_mu(data["delta"], split)
+    mu = fit_mu(data["delta"], split) if mu is None else mu
     frames = []
     for set_name, rows in analysis_sets(split, data["meta"]).items():
         if not rows.any():

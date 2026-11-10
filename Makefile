@@ -2,7 +2,7 @@
 # call CLI commands that land in later phases; they fail with "No such command" until then.
 RUN := uv run
 
-.PHONY: env info test lint data verify baselines train evaluate stats report all tiny colab-bundle
+.PHONY: env info test lint data verify baselines train evaluate stats sensitivity report all tiny colab-bundle
 
 env:
 	uv sync --frozen
@@ -40,6 +40,10 @@ evaluate:
 
 stats:
 	$(RUN) deltaaudit stats
+
+sensitivity: verify
+	$(RUN) deltaaudit hvg-panels
+	$(RUN) deltaaudit sensitivity
 
 report:
 	$(RUN) deltaaudit figures --all

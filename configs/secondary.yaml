@@ -10,3 +10,9 @@ doubles:                                          # prereg 8: B4 vs B1 vs B0 on 
   metrics: [raw_r, pspec_r]
 example_perturbation:                             # F2 (iv): best learned model, high raw_r, ~0 pspec_r
   max_abs_pspec_r: 0.05
+sensitivity:                                      # Phase 9 (prereg 8)
+  hvg_reselection:                                # BUILD_GUIDE D3: panel chosen without test cells
+    dataset: replogle_k562
+    fold: 0
+    n_top: 2000                                   # re-selected inside GEARS' 5,000-gene panel
+    n_bins: 20                                    # Seurat dispersion: z-score within mean bins
